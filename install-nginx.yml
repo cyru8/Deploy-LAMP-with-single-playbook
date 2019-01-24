@@ -1,0 +1,247 @@
+---
+- hosts: all
+  #become root (using sudo, by default)
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: Installing epel release
+      yum: 
+        name: epel-release
+        state: latest
+    
+    - name: install libselinux-python
+      yum:
+        name: libselinux-python
+        state: latest
+
+    #- name: install python 2
+    #  raw : test -e /usr/bin/python || {yum update && yum install -y python}
+    #    name: python36u
+    #    state: latest
+    
+    #- name: install python36u-libs
+    #  yum: 
+    #    name: python36u-libs
+    #    state: latest
+
+    #- name: install python36u-devel
+    #  yum:
+    #    name: python36u-devel
+    #    state: lastest
+
+    #- name: install firewalld
+    #  yum: 
+    #    name: firewalld
+    #    state: latest
+
+    - name: install nginx package
+      yum:
+        name: nginx
+        state: latest
+             
+    - name: install Chrony
+      yum:
+        name: chrony
+        state: latest
+ 
+    - name: install git
+      yum:
+        name: git
+        state: latest
+
+    - name: install ntp
+      yum:
+        name: ntp
+        state: latest
+     
+    - name: install vim
+      yum:
+        name: vim
+        state: latest
+
+    - name: install Kernel-devel
+      yum: 
+        name: kernel-devel
+        state: latest
+
+    - name: install kernel-headers
+      yum:
+        name: kernel-headers
+        state: latest
+
+    - name: install dkms
+      yum:
+        name: dkms
+        state: latest
+
+    - name: install gcc
+      yum:
+        name: gcc
+        state: latest
+
+    - name: install gcc-c++
+      yum: 
+        name: gcc-c++
+        state: latest
+
+    - name: install php
+      yum:
+        name: php
+        state: latest
+
+    - name: install mariadb
+      yum:
+        name: mariadb
+        state: latest
+
+    - name: install mariadb-server
+      yum:
+        name: mariadb-server
+        state: latest
+     
+    - name: install php-fpm
+      yum:
+        name: php-fpm
+        state: latest
+
+    - name: install wget
+      yum: 
+        name: wget
+        state: latest
+
+    - name: install php-mysql
+      yum: 
+        name: php-mysql
+        state: latest
+
+    - name: install bzip2
+      yum:
+        name: bzip2
+        state: latest
+
+    - name: install the 'Development tools' package group
+      yum:
+        name: "@Development tools"
+        state: present
+
+    - name: upgrade all packages
+      yum:
+        name: '*'
+        state: latest
+
+    - name: upgrade all packages, excluding kernel & foo related packages
+      yum:
+        name: '*'
+        state: latest
+        exclude: kernel*,foo*
+
+    #Enable firewall rules
+    #- name: firewall http
+    #  firewalld: service=http permanent=true state=enabled
+    #- name: https rule
+    #  firewalld: service=https permanent=true state=enabled
+
+    - name: copy files
+      copy: src=./nginx.conf dest=/etc/nginx/nginx.conf owner=root group=root mode=0644
+      become: yes
+    
+    - name: Enabling NGINX
+      service: name=nginx state=restarted enabled=yes
+      become: yes
+
+      #PHP,Use the yum module to install the php and php-fpm and copy module to upload its configuration. And the service module to start and enable it. 
+ 
+    - name: copy 1
+      copy: src=./www.conf dest=/etc/php-fpm.d/www.conf owner=root group=root mode=0644
+      become: yes
+  
+    - name: copy files
+      copy: src=./php.ini dest=/etc/php.ini owner=root group=root mode=0644
+      become: yes
+   
+    # starting php-fpm
+ 
+    - name: Starting php-fpm
+      service: name=php-fpm state=restarted enabled=yes
+      become: yes
+ 
+    # Create a file /usr/share/nginx/html/info.php that contains
+    - name: Copy the files
+      copy: src=./info.php dest=/usr/share/nginx/html/info.php owner=root group=root mode=0644
+
+    - name: Enabling NGINX
+      service: name=nginx state=restarted 
+      become: yes
+
+    #Wordpress setup
+
+    - name: Starting mariadb
+      service: name=mariadb state=restarted enabled=yes
+
+    #copy wp_mariadb_config.sql
+    - name: copy wp_mariadb_config.sql
+      copy: src=./wp_mariadb_config.sql dest=/root/wp_mariadb_config.sql owner=root group=root mode=0644
+      become: yes
+
+    #copy wp_mariadb_config.sh
+    - name: copy wp_mariadb_config.sh
+      copy: src=./wp_mariadb_config.sh dest=/root/wp_mariadb_config.sh owner=root group=root mode=0777
+      become: yes
+
+    #copy wp_mariadb_config.service
+    - name: copy wp_mariadb_config.service
+      copy: src=./wp_mariadb_config.service dest=/root/wp_mariadb_config.service owner=root group=root mode=0644
+      become: yes
+  
+    #Use the get_url module to get the wordpress source and unarchive module to unpack the archive. Use the command module to move the files to their final destination. Use the files module to set up their permissions.
+
+    - name: download wordpress
+      get_url: url=http://wordpress.org/latest.tar.gz dest=/root/latest.tar.gz mode=0440
+
+    - unarchive: src=/root/latest.tar.gz dest=/root/ copy=no
+    - copy: src=./wp-config.php dest=/root/wp-config.php owner=root group=root mode=0644 
+    #- command: /usr/bin/rsync -avP /root/wordpress/ /usr/share/nginx/html/
+    - file: path=/usr/share/nginx/html/wp-content/uploads state=directory mode=0755 
+    - file: path=/usr/share/nginx/html state=directory owner=nginx group=nginx recurse=yes    
+
+    #cp wordpress/wp-config-sample.php wordpress/wp-config.php
+    - name: Copy the files
+      copy: src=./wp-config.php dest=/root/wp-config.php owner=root group=root mode=0644
+      become: yes
+
+    #Copy the wordpress source to the nginx document root using rsync to preserve all meta data (and go faster)
+
+    #- name: syncronisation
+    #  command: rsync -avP ./wordpress/ /usr/share/nginx/html/
+
+    # Make a directory for uploads (we will use this later): sudo mkdir /usr/share/nginx/html/wp-content/uploads
+    - file: path=/usr/share/nginx/html/wp-content/uploads state=directory mode=0755
+
+    #Set the permissions on the wordpress source: sudo chown -R root:nginx /usr/share/nginx/html/*
+
+    - file: path=/usr/share/nginx/html state=directory owner=nginx group=nginx recurse=yes
+
+    # To run the script
+    #- name: Run the wp_mariadb_confi.sh script
+    #  script: ./wp_mariadb_config.sh 
+    #  become: yes
+
+    # Enable all the services once again
+
+    - name: Starting mariadb
+      service: name=mariadb state=restarted enabled=yes
+
+    - name: Enabling NGINX
+      service: name=nginx state=restarted enabled=yes
+      become: yes
+
+    - name: Starting php-fpm
+      service: name=php-fpm state=restarted enabled=yes
+      become: yes
+
+    - name: firewalld
+      service: name=firewalld state=restarted enabled=yes
+      become: yes
+
+      #Check on your workstation browse http://localhost:50080
